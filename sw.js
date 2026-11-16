@@ -1,10 +1,10 @@
 /* Guarda los archivos de la app en el celular para que abra sin internet.
    Al cambiar cualquier archivo de la app, subir el número de VERSION. */
-const VERSION = "dendra-campo-v2";
+const VERSION = "dendra-campo-v3";
 const ARCHIVOS = [
   "./", "index.html", "app.js", "config.js", "manifest.webmanifest",
   "icono-192.png", "icono-512.png",
-  "vendor/h3-js.umd.js", "vendor/jszip.min.js", "vendor/supabase.js",
+  "vendor/h3-js.umd.js", "vendor/jszip.min.js", "vendor/supabase.js", "vendor/leaflet.js", "vendor/leaflet.css",
 ];
 
 self.addEventListener("install", (evento) => {

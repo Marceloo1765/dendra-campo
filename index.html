@@ -6,6 +6,7 @@
 <title>Dendra Campo</title>
 <meta name="theme-color" content="#1f5c4a">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="icon" href="icono-192.png">
 <link rel="apple-touch-icon" href="icono-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -95,6 +96,13 @@ button:disabled { opacity: .5; cursor: default; }
 .mensaje { padding: 10px 12px; border-radius: 8px; background: var(--aviso-fondo); color: var(--aviso); font-size: 14px; }
 .mensaje[hidden] { display: none; }
 
+/* Mapa para ajustar el punto: el mapa se mueve y el pin queda fijo en el centro */
+#mapa-caja { position: relative; height: 340px; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--linea); }
+#mapa { position: absolute; inset: 0; background: var(--linea); }
+#mapa-pin { position: absolute; left: 50%; top: 50%; width: 36px; height: 48px; transform: translate(-50%, -100%); z-index: 500; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); }
+#mapa-ayuda { font-size: 14px; color: var(--tinta-suave); font-variant-numeric: tabular-nums; }
+.leaflet-container { font: inherit; }
+
 /* Fotos */
 .fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
 .fotos:empty { display: none; }
@@ -150,6 +158,18 @@ nav button[aria-current=page] { color: var(--acento); border-top-color: var(--ac
       <div id="gps-coords" class="gps-coords">—</div>
       <div id="gps-detalle" class="gps-detalle">Esperando al GPS. Si el celular pregunta, permite la ubicación.</div>
       <div id="gps-mensaje" class="mensaje" hidden></div>
+      <button type="button" id="btn-mapa">Ajustar el punto en el mapa</button>
+      <div id="panel-mapa" hidden style="display:flex;flex-direction:column;gap:10px">
+        <div id="mapa-caja">
+          <div id="mapa"></div>
+          <svg id="mapa-pin" viewBox="0 0 36 48" aria-hidden="true"><path d="M18 47C18 47 34 28 34 17A16 16 0 0 0 2 17C2 28 18 47 18 47Z" fill="#c8321e" stroke="#fff" stroke-width="2"/><circle cx="18" cy="17" r="6" fill="#fff"/></svg>
+        </div>
+        <div id="mapa-ayuda">Mueve el mapa hasta que la punta del pin quede sobre la puerta del local.</div>
+        <div class="fila">
+          <button type="button" class="principal" id="btn-usar-mapa" style="min-height:48px;font-size:16px">Usar este punto</button>
+          <button type="button" id="btn-centrar-mapa">Volver a donde estoy</button>
+        </div>
+      </div>
       <div class="fila">
         <button type="button" id="btn-fijar">Fijar esta ubicación</button>
         <button type="button" id="btn-manual">Escribir coordenadas</button>
@@ -266,6 +286,7 @@ nav button[aria-current=page] { color: var(--acento); border-top-color: var(--ac
 <script src="vendor/h3-js.umd.js"></script>
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/supabase.js"></script>
+<script src="vendor/leaflet.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

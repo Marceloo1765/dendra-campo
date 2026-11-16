@@ -284,6 +284,8 @@ function iniciarGPS() {
       ultimaPosicion = { lat: p.coords.latitude, lon: p.coords.longitude, precision: p.coords.accuracy };
       $("#gps-mensaje").hidden = true;
       pintarUbicacion();
+      pintarPuntoGPS();
+      pintarAyudaMapa();
     },
     (error) => {
       const textos = {
@@ -322,7 +324,7 @@ async function pintarUbicacion() {
     `${precision}hexágono ${celda} · ${enHexagono} ${enHexagono === 1 ? "registro" : "registros"} en este hexágono`;
 
   if (posicionFijada) {
-    estado.textContent = "fijada";
+    estado.textContent = posicionFijada.origen === "mapa" ? "elegida en el mapa" : "fijada";
     estado.className = "pastilla bien";
     $("#btn-fijar").textContent = "Volver al GPS en vivo";
   } else {
@@ -362,6 +364,89 @@ for (const id of ["#manual-lat", "#manual-lon"]) {
     if (manual) { posicionFijada = manual; pintarUbicacion(); }
   });
 }
+
+/* ---------------- Mapa para ajustar el punto ---------------- */
+
+const ZOOM_MAPA = 19;
+let mapa = null;         // se crea la primera vez que se abre
+let puntoGPS = null;     // círculo azul: dónde estoy según el GPS
+let hexagonoMapa = null; // borde del hexágono H3 donde cae el pin
+
+function distanciaMetros(a, b) {
+  return L.latLng(a.lat, a.lon).distanceTo(L.latLng(b.lat, b.lon));
+}
+
+function abrirMapa() {
+  const inicio = posicionFijada || ultimaPosicion || { lat: -12.1211, lon: -77.0297 };  // sin GPS: Parque Kennedy
+  $("#panel-mapa").hidden = false;
+  $("#btn-mapa").textContent = "Cerrar el mapa";
+  if (!mapa) {
+    mapa = L.map("mapa", { zoomControl: true, attributionControl: true }).setView([inicio.lat, inicio.lon], ZOOM_MAPA);
+    // Teselas de Esri (las mismas de los mapas del proyecto); necesitan internet
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+      maxNativeZoom: 19, maxZoom: 21, attribution: "Tiles © Esri",
+    }).addTo(mapa);
+    mapa.on("move", pintarAyudaMapa);
+    mapa.on("moveend", pintarHexagonoMapa);
+  } else {
+    mapa.invalidateSize();
+    mapa.setView([inicio.lat, inicio.lon], Math.max(mapa.getZoom(), ZOOM_MAPA - 1));
+  }
+  pintarPuntoGPS();
+  pintarAyudaMapa();
+  pintarHexagonoMapa();
+}
+
+function cerrarMapa() {
+  $("#panel-mapa").hidden = true;
+  $("#btn-mapa").textContent = "Ajustar el punto en el mapa";
+}
+
+function pintarPuntoGPS() {
+  if (!mapa || !ultimaPosicion) return;
+  const centro = [ultimaPosicion.lat, ultimaPosicion.lon];
+  if (!puntoGPS) {
+    puntoGPS = L.circleMarker(centro, { radius: 8, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(mapa);
+  } else {
+    puntoGPS.setLatLng(centro);
+  }
+}
+
+function pintarAyudaMapa() {
+  if (!mapa || $("#panel-mapa").hidden) return;
+  const c = mapa.getCenter();
+  let texto = `Pin en ${c.lat.toFixed(6)}, ${c.lng.toFixed(6)}`;
+  if (ultimaPosicion) texto += ` · a ${Math.round(distanciaMetros({ lat: c.lat, lon: c.lng }, ultimaPosicion))} m de ti (punto azul)`;
+  $("#mapa-ayuda").textContent = texto + ". Mueve el mapa hasta que la punta del pin quede sobre la puerta del local.";
+}
+
+function pintarHexagonoMapa() {
+  if (!mapa) return;
+  const c = mapa.getCenter();
+  try {
+    const borde = h3.cellToBoundary(hexagono(c.lat, c.lng));  // lista de [lat, lon]
+    if (hexagonoMapa) hexagonoMapa.setLatLngs(borde);
+    else hexagonoMapa = L.polygon(borde, { color: "#1f5c4a", weight: 2, fill: false, dashArray: "6 6", interactive: false }).addTo(mapa);
+  } catch (e) { /* sin hexágono: no pasa nada */ }
+}
+
+$("#btn-mapa").addEventListener("click", () => {
+  if ($("#panel-mapa").hidden) abrirMapa(); else cerrarMapa();
+});
+
+$("#btn-centrar-mapa").addEventListener("click", () => {
+  if (!ultimaPosicion) { avisar("Todavía no hay ubicación del GPS"); return; }
+  mapa.setView([ultimaPosicion.lat, ultimaPosicion.lon], ZOOM_MAPA);
+});
+
+$("#btn-usar-mapa").addEventListener("click", () => {
+  const c = mapa.getCenter();
+  // precision null: el punto lo eligió una persona, no el GPS
+  posicionFijada = { lat: c.lat, lon: c.lng, precision: null, origen: "mapa" };
+  cerrarMapa();
+  pintarUbicacion();
+  avisar("Punto elegido en el mapa");
+});
 
 /* ---------------- Fotos ---------------- */
 
@@ -535,6 +620,7 @@ function limpiarFormulario() {
   $("#estado").value = "abierto";
   $("#tipo").value = "cafeteria";
   $("#manual").hidden = true;
+  cerrarMapa();
   $("#titulo-formulario").textContent = "Nuevo registro";
   $("#btn-guardar").textContent = "Guardar registro";
   $("#btn-cancelar").hidden = true;
@@ -592,7 +678,7 @@ async function abrirDetalle(registro) {
     `${ETIQUETAS_ESTADO[registro.estado] || registro.estado} · ${ETIQUETAS_TIPO[registro.tipo] || registro.tipo}`,
     registro.direccion,
     registro.notas,
-    `${registro.lat.toFixed(6)}, ${registro.lon.toFixed(6)}` + (registro.precision_m != null ? ` (±${registro.precision_m} m)` : " (a mano)"),
+    `${registro.lat.toFixed(6)}, ${registro.lon.toFixed(6)}` + (registro.precision_m != null ? ` (GPS, ±${registro.precision_m} m)` : " (punto elegido a mano)"),
     `Hexágono ${registro.h3}`,
     `${registro.fecha} ${registro.hora || ""} · ${registro.quien || ""}`,
   ].filter(Boolean);
